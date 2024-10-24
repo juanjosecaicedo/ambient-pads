@@ -1,9 +1,11 @@
-import { Tabs } from 'expo-router';
+import {Tabs} from 'expo-router';
 import React from 'react';
 
-import { TabBarIcon } from '@/components/navigation/TabBarIcon';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import {TabBarIcon} from '@/components/navigation/TabBarIcon';
+import {Colors} from '@/constants/Colors';
+import {useColorScheme} from '@/hooks/useColorScheme';
+import {Text, View} from "react-native";
+import {Circle} from "lucide-react-native";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -14,21 +16,22 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
       }}>
+
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'home' : 'home-outline'} color={color} />
+          title: 'Foundations',
+          tabBarIcon: ({color, focused}) => (
+            <Circle size={20} color={focused? "#0284c7": "#e0f2fe"}/>
           ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="organic"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'code-slash' : 'code-slash-outline'} color={color} />
+          title: 'Organic',
+          tabBarIcon: ({color, focused}) => (
+            <Circle size={20} color={focused? "#ea580c": "#ffedd5"}/>
           ),
         }}
       />
