@@ -1,17 +1,16 @@
 import {Audio, InterruptionModeAndroid, InterruptionModeIOS} from "expo-av";
 import React, {useCallback, useEffect, useState} from "react";
-import {Image, Pressable, StyleSheet, Text, View} from "react-native";
+import {AppState, AppStateStatus, Image, Platform, Pressable, StyleSheet, Text, View} from "react-native";
 import {useFocusEffect} from "@react-navigation/native";
 import ParallaxScrollView from "@/components/ParallaxScrollView";
 import {ThemedView} from "@/components/ThemedView";
 import GridView from "@/components/GridView";
-import {ThemedText} from "@/components/ThemedText";
-import {addOpacityToColor, Colors} from "@/constants/Colors";
+import {addOpacityToColor} from "@/constants/Colors";
 import {Chords} from "@/constants/Chords";
 import PlaySoundButton from "@/components/sound/PlaySoundButton";
-import {TabBarIcon} from "@/components/navigation/TabBarIcon";
-import {AudioLines, HeadphoneOffIcon, Headphones} from "lucide-react-native";
+import {Headphones} from "lucide-react-native";
 import Animated, {FadeIn, FadeOut} from "react-native-reanimated";
+import * as Notifications from 'expo-notifications';
 
 
 interface Props {
@@ -22,6 +21,7 @@ interface Props {
 export default function PadsSoundsTemplate({soundMap, headerImage}: Props) {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [currentKey, setCurrentKey] = useState<string | null>(null);
+  const [permissionToNotifications, setPermissionToNotifications] = useState<boolean>(true);
 
   useEffect(() => {
     const configureAudioMode = async () => {
@@ -34,7 +34,16 @@ export default function PadsSoundsTemplate({soundMap, headerImage}: Props) {
       });
     };
 
+    const askNotification = async () => {
+      const {status} = await Notifications.requestPermissionsAsync();
+      if (status !== "granted") {
+        setPermissionToNotifications(false);
+        console.warn('Permission to access notifications was denied');
+      }
+    }
+
     configureAudioMode();
+    askNotification()
 
     return () => {
       if (sound) {
@@ -43,7 +52,7 @@ export default function PadsSoundsTemplate({soundMap, headerImage}: Props) {
     };
   }, [sound]);
 
-  async function playSound(key: string) {
+  async function playStopSound(key: string) {
     const soundResource = soundMap[key];
     if (!soundResource) {
       console.warn(`No sound found for key: ${key}`);
@@ -59,6 +68,17 @@ export default function PadsSoundsTemplate({soundMap, headerImage}: Props) {
     Audio.Sound.createAsync(soundResource).then(async (_sound) => {
       const {sound: newSound} = _sound;
       await newSound.playAsync();
+
+      /*if (Platform.OS !== 'web' && permissionToNotifications) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Ambient Pads',
+            body: `The key sound is playing: ${key}`
+          },
+          trigger: null
+        })
+      }*/
+
       setSound(newSound)
       setCurrentKey(key);
     })
@@ -79,6 +99,25 @@ export default function PadsSoundsTemplate({soundMap, headerImage}: Props) {
     }, [sound])
   );
 
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (Platform.OS !== 'web' && permissionToNotifications && nextAppState === "background" && currentKey) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Ambient Pads',
+            body: `The key sound is playing: ${currentKey}`
+          },
+          trigger: null,
+        });
+      }
+    };
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [currentKey]);
 
   return (
     <ParallaxScrollView
@@ -92,7 +131,7 @@ export default function PadsSoundsTemplate({soundMap, headerImage}: Props) {
       <ThemedView>
         <View style={{paddingTop: 10}}>
           <GridView data={Chords} renderItem={(item) => (
-            <PlaySoundButton title={item} currentKey={currentKey} onPress={() => playSound(item)}/>
+            <PlaySoundButton title={item} currentKey={currentKey} onPress={() => playStopSound(item)}/>
           )}/>
         </View>
         <View style={{
@@ -123,8 +162,8 @@ export default function PadsSoundsTemplate({soundMap, headerImage}: Props) {
                 textTransform: 'capitalize',
                 fontWeight: '700'
               }}>{currentKey}</Text></Text>
-              <Pressable onPress={() => playSound(currentKey)}>
-                <Headphones  size={22} color="#ef4444"/>
+              <Pressable onPress={() => playStopSound(currentKey)}>
+                <Headphones size={22} color="#ef4444"/>
               </Pressable>
             </Animated.View>
           )}
