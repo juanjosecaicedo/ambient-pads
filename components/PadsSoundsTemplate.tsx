@@ -11,7 +11,7 @@ import PlaySoundButton from "@/components/sound/PlaySoundButton";
 import {Headphones} from "lucide-react-native";
 import Animated, {FadeIn, FadeOut} from "react-native-reanimated";
 import * as Notifications from 'expo-notifications';
-
+import {activateKeepAwakeAsync, deactivateKeepAwake} from 'expo-keep-awake';
 
 interface Props {
   soundMap: { [p: string]: any };
@@ -22,6 +22,18 @@ export default function PadsSoundsTemplate({soundMap, headerImage}: Props) {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [currentKey, setCurrentKey] = useState<string | null>(null);
   const [permissionToNotifications, setPermissionToNotifications] = useState<boolean>(true);
+  const TIME = 100;
+
+  const handleFadeAndUnload = async () => {
+    try {
+      for (let volume = 1; volume >= 0; volume -= 0.1) {
+        await sound?.setVolumeAsync(volume);
+        await new Promise(resolve => setTimeout(resolve, TIME));
+      }
+      await sound?.unloadAsync();
+    } catch (e) {
+    }
+  };
 
   useEffect(() => {
     const configureAudioMode = async () => {
@@ -45,12 +57,15 @@ export default function PadsSoundsTemplate({soundMap, headerImage}: Props) {
     configureAudioMode();
     askNotification()
 
+
     return () => {
       if (sound) {
-        sound.unloadAsync();
+        //setSound(sound)
+        sound?.unloadAsync();
       }
     };
   }, [sound]);
+
 
   async function playStopSound(key: string) {
     const soundResource = soundMap[key];
@@ -60,28 +75,45 @@ export default function PadsSoundsTemplate({soundMap, headerImage}: Props) {
     }
 
     if (key === currentKey && sound) {
-      await sound.unloadAsync();
-      setCurrentKey(null)
+      await handleFadeAndUnload();
+      await deactivateKeepAwake();
+      setCurrentKey(null);
+      setSound(null);
       return null;
     }
 
     Audio.Sound.createAsync(soundResource).then(async (_sound) => {
       const {sound: newSound} = _sound;
-      await newSound.playAsync();
 
-      /*if (Platform.OS !== 'web' && permissionToNotifications) {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'Ambient Pads',
-            body: `The key sound is playing: ${key}`
-          },
-          trigger: null
-        })
-      }*/
+      if (sound) {
+        await handleFadeAndUnload()
+      }
+
+      await newSound.playAsync();
+      await newSound.setVolumeAsync(0);
+      await newSound.setIsLoopingAsync(true);
 
       setSound(newSound)
       setCurrentKey(key);
+
+      for (let volume = 0; volume <= 1; volume += 0.1) {
+        await newSound.setVolumeAsync(volume);
+        await new Promise(resolve => setTimeout(resolve, TIME));
+      }
+      await activateKeepAwakeAsync();
     })
+  }
+
+  const stopSound = async () => {
+    const status = await sound?.getStatusAsync();
+    if (!status?.isLoaded) {
+      return;
+    }
+
+    for (let volume = 1; volume >= 0; volume -= 0.1) {
+      await sound?.setVolumeAsync(volume);
+      await new Promise(resolve => setTimeout(resolve, TIME));
+    }
   }
 
   useFocusEffect(
@@ -93,7 +125,9 @@ export default function PadsSoundsTemplate({soundMap, headerImage}: Props) {
       });
       return () => {
         if (sound) {
-          sound?.unloadAsync();
+          stopSound().then(() => {
+            sound?.unloadAsync();
+          })
         }
       };
     }, [sound])
